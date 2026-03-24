@@ -7,7 +7,6 @@ import jakarta.validation.constraints.Size;
 import lombok.*;
 import org.springframework.format.annotation.DateTimeFormat;
 
-import java.time.Duration;
 import java.time.LocalDate;
 
 /**
