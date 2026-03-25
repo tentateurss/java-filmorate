@@ -37,7 +37,7 @@ public class FilmController {
 
         if (film.getDescription() != null && film.getDescription().length() > 200) {
             log.warn("Описание фильма не прошло валидацию");
-            throw new ValidationException("Длина описания не может быть длинне 200 символов");
+            throw new ValidationException("Длина описания не может быть больше 200 символов");
         }
 
         LocalDate earliestDate = LocalDate.of(1895, 12, 28);
@@ -49,7 +49,6 @@ public class FilmController {
             log.warn("Дата релиза фильма не прошла валидацию");
             throw new ValidationException("Дата релиза не может быть раньше 28 декабря 1895 г.");
         }
-
 
         if (film.getDuration() == null || film.getDuration() <= 0) {
             log.warn("Продолжительность фильма не прошла валидацию");
