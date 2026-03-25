@@ -81,8 +81,10 @@ public class UserControllerTest {
                 .birthday(LocalDate.of(2000, 1, 1))
                 .build();
 
-        User created = userController.createUser(userWithBlankEmail);
-        assertEquals("", created.getEmail());
+        ValidationException exception = assertThrows(ValidationException.class,
+                () -> userController.createUser(userWithBlankEmail));
+
+        assertEquals("Почта введена некорректно", exception.getMessage());
     }
 
     @Test
@@ -94,8 +96,10 @@ public class UserControllerTest {
                 .birthday(LocalDate.of(2000, 1, 1))
                 .build();
 
-        User created = userController.createUser(userWithInvalidEmail);
-        assertEquals("testtest.com", created.getEmail());
+        ValidationException exception = assertThrows(ValidationException.class,
+                () -> userController.createUser(userWithInvalidEmail));
+
+        assertEquals("Почта введена некорректно", exception.getMessage());
     }
 
     @Test
@@ -107,8 +111,10 @@ public class UserControllerTest {
                 .birthday(LocalDate.of(2000, 1, 1))
                 .build();
 
-        User created = userController.createUser(userWithBlankLogin);
-        assertEquals("", created.getLogin());
+        ValidationException exception = assertThrows(ValidationException.class,
+                () -> userController.createUser(userWithBlankLogin));
+
+        assertEquals("Логин не должен быть пустым и содержать пробелы", exception.getMessage());
     }
 
     @Test
@@ -120,8 +126,10 @@ public class UserControllerTest {
                 .birthday(LocalDate.of(2000, 1, 1))
                 .build();
 
-        User created = userController.createUser(userWithSpacesInLogin);
-        assertEquals("test login", created.getLogin());
+        ValidationException exception = assertThrows(ValidationException.class,
+                () -> userController.createUser(userWithSpacesInLogin));
+
+        assertEquals("Логин не должен быть пустым и содержать пробелы", exception.getMessage());
     }
 
     @Test
@@ -148,8 +156,10 @@ public class UserControllerTest {
                 .birthday(null)
                 .build();
 
-        User created = userController.createUser(userWithNullBirthday);
-        assertNull(created.getBirthday());
+        ValidationException exception = assertThrows(ValidationException.class,
+                () -> userController.createUser(userWithNullBirthday));
+
+        assertEquals("Дата рождения должна быть указана", exception.getMessage());
     }
 
     @Test
