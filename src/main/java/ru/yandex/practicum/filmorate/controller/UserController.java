@@ -30,7 +30,21 @@ public class UserController {
     public User createUser(@Valid @RequestBody User user) {
         log.info("Начало запроса на добавление пользователя {}", user);
 
-        if (user.getBirthday() != null && user.getBirthday().isAfter(LocalDate.now())) {
+        if (user.getEmail() == null || user.getEmail().isBlank() || !user.getEmail().contains("@")) {
+            log.warn("Почта {} не прошла валидацию", user.getEmail());
+            throw new ValidationException("Почта введена некорректно");
+        }
+
+        if (user.getLogin() == null || user.getLogin().isBlank() || user.getLogin().contains(" ")) {
+            log.warn("Логин пользователя не прошёл валидацию");
+            throw new ValidationException("Логин не должен быть пустым и содержать пробелы");
+        }
+
+        if (user.getBirthday() == null) {
+            log.warn("Дата рождения не указана");
+            throw new ValidationException("Дата рождения должна быть указана");
+        }
+        if (user.getBirthday().isAfter(LocalDate.now())) {
             log.warn("Дата рождения пользователя не прошла валидацию");
             throw new ValidationException("Дата рождения не может быть в будущем");
         }
@@ -78,6 +92,9 @@ public class UserController {
         }
 
         if (newUser.getEmail() != null && !newUser.getEmail().equalsIgnoreCase(existingUser.getEmail())) {
+            if (newUser.getEmail().isBlank() || !newUser.getEmail().contains("@")) {
+                throw new ValidationException("Почта введена некорректно");
+            }
             boolean emailExists = users.values().stream()
                     .anyMatch(user -> user.getEmail().equalsIgnoreCase(newUser.getEmail()));
 
@@ -90,6 +107,9 @@ public class UserController {
         }
 
         if (newUser.getLogin() != null) {
+            if (newUser.getLogin().isBlank() || newUser.getLogin().contains(" ")) {
+                throw new ValidationException("Логин не должен быть пустым и содержать пробелы");
+            }
             existingUser.setLogin(newUser.getLogin());
             log.debug("Пользователю установлен логин {}", newUser.getLogin());
         }
