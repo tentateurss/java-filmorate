@@ -8,15 +8,14 @@ import org.springframework.format.annotation.DateTimeFormat;
 import java.time.LocalDate;
 
 @Data
-@EqualsAndHashCode(of = {"name", "releaseDate"})
+@EqualsAndHashCode(of = {"email"})
 @Builder
-public class Film {
+public class User {
     private Long id;
+    private String email;
+    private String login;
     private String name;
-    private String description;
 
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-    private LocalDate releaseDate; // собственная аннотация ValidReleaseDate будет тут
-
-    private Integer duration;
+    private LocalDate birthday;
 }
