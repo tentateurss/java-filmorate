@@ -58,7 +58,7 @@ public class UserValidators {
         }
     }
 
-    public static void validateUser(User user, UserStorage userStorage) {
+    public static void validateForCreate(User user, UserStorage userStorage) {
         validateUserEmail(user);
         validateUserLogin(user);
         validateUserBirthday(user);
@@ -66,7 +66,9 @@ public class UserValidators {
         validateEmailDuplicate(user, userStorage);
     }
 
-    public static void validateUserForUpdate(User newUser, User existingUser, UserStorage userStorage) {
+    public static void validateForUpdate(User newUser, User existingUser, UserStorage userStorage) {
+        validateUserId(newUser.getId());
+
         if (newUser.getBirthday() != null && newUser.getBirthday().isAfter(LocalDate.now())) {
             log.warn("Дата рождения пользователя не прошла валидацию");
             throw new ValidationException("Дата рождения не может быть в будущем");
@@ -80,26 +82,12 @@ public class UserValidators {
                 log.warn("Передана почта, которая указана у другого пользователя");
                 throw new DuplicatedDataException("Данная почта уже используется");
             }
-            existingUser.setEmail(newUser.getEmail());
-            log.debug("Пользователю установлена почта {}", newUser.getEmail());
         }
 
         if (newUser.getLogin() != null) {
             if (newUser.getLogin().isBlank() || newUser.getLogin().contains(" ")) {
                 throw new ValidationException("Логин не должен быть пустым и содержать пробелы");
             }
-            existingUser.setLogin(newUser.getLogin());
-            log.debug("Пользователю установлен логин {}", newUser.getLogin());
-        }
-
-        if (newUser.getName() != null) {
-            existingUser.setName(newUser.getName());
-            log.debug("Пользователю установлено имя {}", newUser.getName());
-        }
-
-        if (newUser.getBirthday() != null) {
-            existingUser.setBirthday(newUser.getBirthday());
-            log.debug("Пользователю установлена дата рождения {}", newUser.getBirthday());
         }
     }
 }

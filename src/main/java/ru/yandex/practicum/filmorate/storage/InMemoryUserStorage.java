@@ -41,18 +41,19 @@ public class InMemoryUserStorage implements UserStorage {
     }
 
     @Override
-    public boolean deleteUser(Long userId) {
+    public void deleteUser(Long userId) {
         if (!users.containsKey(userId)) {
             throw new NotFoundException("Пользователь, которого требуется удалить - не найден");
         }
 
         for (User otherUser : users.values()) {
-            otherUser.getFriends().remove(userId);
+            if (otherUser.getFriends() != null) {
+                otherUser.getFriends().remove(userId);
+            }
         }
 
         users.remove(userId);
         log.debug("Пользователь с ID {} удалён из хранилища и из списков друзей", userId);
-        return true;
     }
 
     @Override

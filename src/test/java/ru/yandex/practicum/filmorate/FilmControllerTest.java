@@ -28,8 +28,6 @@ import static org.junit.jupiter.api.Assertions.*;
 public class FilmControllerTest {
     private FilmController filmController;
     private UserController userController;
-    private FilmStorage filmStorage;
-    private UserStorage userStorage;
     private FilmService filmService;
     private UserService userService;
     private Film validFilm;
@@ -37,12 +35,14 @@ public class FilmControllerTest {
 
     @BeforeEach
     void setUp() {
-        filmStorage = new InMemoryFilmStorage();
-        userStorage = new InMemoryUserStorage();
+        FilmStorage filmStorage = new InMemoryFilmStorage();
+        UserStorage userStorage = new InMemoryUserStorage();
+
         userService = new UserService(userStorage);
-        filmService = new FilmService(filmStorage, userStorage);
-        filmController = new FilmController(filmStorage, filmService);
-        userController = new UserController(userStorage, userService);
+        filmService = new FilmService(filmStorage, userService);
+
+        filmController = new FilmController(filmService);
+        userController = new UserController(userService);
 
         validFilm = Film.builder()
                 .name("Valid Film")
@@ -448,7 +448,7 @@ public class FilmControllerTest {
 
         filmController.addLike(film.getId(), user.getId());
 
-        Film likedFilm = filmController.getFilmId(film.getId());
+        Film likedFilm = filmController.getFilmById(film.getId());
         assertEquals(1, likedFilm.getLikes().size());
         assertTrue(likedFilm.getLikes().contains(user.getId()));
     }
@@ -494,7 +494,7 @@ public class FilmControllerTest {
         filmController.addLike(film.getId(), user.getId());
         filmController.deleteLike(film.getId(), user.getId());
 
-        Film unlikedFilm = filmController.getFilmId(film.getId());
+        Film unlikedFilm = filmController.getFilmById(film.getId());
         assertEquals(0, unlikedFilm.getLikes().size());
         assertFalse(unlikedFilm.getLikes().contains(user.getId()));
     }

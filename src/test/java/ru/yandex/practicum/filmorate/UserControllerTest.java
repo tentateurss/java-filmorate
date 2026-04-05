@@ -32,7 +32,7 @@ public class UserControllerTest {
     void setUp() {
         userStorage = new InMemoryUserStorage();
         userService = new UserService(userStorage);
-        userController = new UserController(userStorage, userService);
+        userController = new UserController(userService);
 
         validUser = User.builder()
                 .email("test@test.com")
@@ -516,5 +516,15 @@ public class UserControllerTest {
                 () -> userController.getUserAllFriends(999L));
 
         assertEquals("Пользователь с ID - 999 не найден", exception.getMessage());
+    }
+
+    @Test
+    void addFriendShouldThrowExceptionWhenAddingSelf() {
+        User user = userController.createUser(validUser);
+
+        ConditionsNotMetException exception = assertThrows(ConditionsNotMetException.class,
+                () -> userController.addFriend(user.getId(), user.getId()));
+
+        assertEquals("Нельзя добавить самого себя в друзья", exception.getMessage());
     }
 }

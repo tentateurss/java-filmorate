@@ -4,11 +4,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
-import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.model.User;
 import ru.yandex.practicum.filmorate.service.UserService;
-import ru.yandex.practicum.filmorate.storage.UserStorage;
-import ru.yandex.practicum.filmorate.validators.uservalidators.UserValidators;
 
 import java.util.Collection;
 
@@ -17,75 +14,57 @@ import java.util.Collection;
 @RequestMapping("/users")
 @RequiredArgsConstructor
 public class UserController {
-    private final UserStorage userStorage;
     private final UserService userService;
 
     @GetMapping
     public Collection<User> getAllUsers() {
         log.info("Запрос списка всех пользователей");
-        return userStorage.getAllUsers();
+        return userService.getAllUsers();
     }
 
     @GetMapping("/{userId}")
-    public User getUserId(@PathVariable Long userId) {
-        log.info("Запрос пользователя");
-        User user = userService.getUserById(userId);
-        return user;
+    public User getUserById(@PathVariable Long userId) {
+        log.info("Запрос пользователя с ID {}", userId);
+        return userService.getUserById(userId);
     }
 
     @GetMapping("/{userId}/friends")
     public Collection<User> getUserAllFriends(@PathVariable Long userId) {
-        log.info("Запрос списка всех друзей пользователя");
+        log.info("Запрос списка всех друзей пользователя {}", userId);
         return userService.getAllFriends(userId);
     }
 
     @GetMapping("/{userId}/friends/common/{otherId}")
     public Collection<User> getCommonFriends(@PathVariable Long userId, @PathVariable Long otherId) {
-        log.info("Запрос общих друзей пользователя {}", userId);
+        log.info("Запрос общих друзей пользователя {} и {}", userId, otherId);
         return userService.getCommonFriends(userId, otherId);
     }
 
     @PostMapping
     public User createUser(@Valid @RequestBody User user) {
         log.info("Начало запроса на добавление пользователя {}", user);
-
-        UserValidators.validateUser(user, userStorage);
-
-        userStorage.createUser(user);
-        log.debug("Пользователь добавлен");
-        log.info("Завершение запроса на добавление пользователя {}", user);
-
-        return user;
+        User created = userService.createUser(user);
+        log.info("Завершение запроса на добавление пользователя {}", created);
+        return created;
     }
 
     @PutMapping
     public User updateUser(@Valid @RequestBody User newUser) {
         log.info("Начало запроса изменение пользователя {}", newUser);
-
-        UserValidators.validateUserId(newUser.getId());
-
-        User existingUser = userStorage.getUserById(newUser.getId())
-                .orElseThrow(() -> {
-                    log.warn("Передан пользователь, которого нет в базе");
-                    return new NotFoundException("Пользователь с ID - " + newUser.getId() + " не найден");
-                });
-
-        UserValidators.validateUserForUpdate(newUser, existingUser, userStorage);
-
-        userStorage.updateUser(existingUser);
-        log.info("Завершение запроса изменения пользователя {}", existingUser);
-        return existingUser;
+        User updated = userService.updateUser(newUser);
+        log.info("Завершение запроса изменения пользователя {}", updated);
+        return updated;
     }
 
     @PutMapping("/{userId}/friends/{friendId}")
     public void addFriend(@PathVariable Long userId, @PathVariable Long friendId) {
-        log.info("Запрос на добавления в друзья пользователя {}", userId);
+        log.info("Запрос на добавление в друзья пользователя {} и {}", userId, friendId);
         userService.addFriend(userId, friendId);
     }
 
     @DeleteMapping("/{userId}/friends/{friendId}")
     public void deleteFriend(@PathVariable Long userId, @PathVariable Long friendId) {
-        log.info("Запрос на удаление из друзей пользователя {}", userId);
+        log.info("Запрос на удаление из друзей пользователя {} и {}", userId, friendId);
         userService.deleteFriend(userId, friendId);
     }
 }
