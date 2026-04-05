@@ -11,7 +11,7 @@ import java.time.LocalDate;
 
 @Slf4j
 public class FilmValidators {
-    private final static LocalDate earliestDate = LocalDate.of(1895, 12, 28);
+    private static final LocalDate earliestDate = LocalDate.of(1895, 12, 28);
 
     public static void filmNameValidator(Film film) {
         if (film.getName() == null || film.getName().isBlank()) {
