@@ -9,6 +9,9 @@ import ru.yandex.practicum.filmorate.exception.DuplicatedDataException;
 import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.exception.ValidationException;
 import ru.yandex.practicum.filmorate.model.User;
+import ru.yandex.practicum.filmorate.service.UserService;
+import ru.yandex.practicum.filmorate.storage.InMemoryUserStorage;
+import ru.yandex.practicum.filmorate.storage.UserStorage;
 
 import java.time.LocalDate;
 import java.util.Collection;
@@ -19,16 +22,37 @@ import static org.junit.jupiter.api.Assertions.*;
 public class UserControllerTest {
 
     private UserController userController;
+    private UserStorage userStorage;
+    private UserService userService;
     private User validUser;
+    private User friend1;
+    private User friend2;
 
     @BeforeEach
     void setUp() {
-        userController = new UserController();
+        userStorage = new InMemoryUserStorage();
+        userService = new UserService(userStorage);
+        userController = new UserController(userStorage, userService);
+
         validUser = User.builder()
                 .email("test@test.com")
                 .login("TEST")
                 .name("TEST TEST")
                 .birthday(LocalDate.of(2000, 1, 1))
+                .build();
+
+        friend1 = User.builder()
+                .email("friend1@test.com")
+                .login("friend1")
+                .name("Friend One")
+                .birthday(LocalDate.of(1995, 5, 5))
+                .build();
+
+        friend2 = User.builder()
+                .email("friend2@test.com")
+                .login("friend2")
+                .name("Friend Two")
+                .birthday(LocalDate.of(1998, 8, 8))
                 .build();
     }
 
@@ -354,7 +378,7 @@ public class UserControllerTest {
         DuplicatedDataException exception = assertThrows(DuplicatedDataException.class,
                 () -> userController.updateUser(updateWithExistingEmail));
 
-        assertEquals("Этот имейл уже используется", exception.getMessage());
+        assertEquals("Данная почта уже используется", exception.getMessage());
     }
 
     @Test
@@ -372,5 +396,125 @@ public class UserControllerTest {
         User updated = userController.updateUser(updateWithSameEmail);
         assertEquals("New Name", updated.getName());
         assertEquals(validUser.getEmail(), updated.getEmail());
+    }
+
+    // Тесты друзей
+    @Test
+    void addFriendShouldAddFriendToBothUsers() {
+        User user = userController.createUser(validUser);
+        User friend = userController.createUser(friend1);
+
+        userController.addFriend(user.getId(), friend.getId());
+
+        Collection<User> userFriends = userController.getUserAllFriends(user.getId());
+        Collection<User> friendFriends = userController.getUserAllFriends(friend.getId());
+
+        assertEquals(1, userFriends.size());
+        assertEquals(1, friendFriends.size());
+        assertEquals(friend.getId(), userFriends.iterator().next().getId());
+        assertEquals(user.getId(), friendFriends.iterator().next().getId());
+    }
+
+    @Test
+    void addFriendShouldThrowExceptionWhenUserNotFound() {
+        User friend = userController.createUser(friend1);
+
+        NotFoundException exception = assertThrows(NotFoundException.class,
+                () -> userController.addFriend(999L, friend.getId()));
+
+        assertEquals("Пользователь с ID - 999 не найден", exception.getMessage());
+    }
+
+    @Test
+    void addFriendShouldThrowExceptionWhenFriendNotFound() {
+        User user = userController.createUser(validUser);
+
+        NotFoundException exception = assertThrows(NotFoundException.class,
+                () -> userController.addFriend(user.getId(), 999L));
+
+        assertEquals("Пользователь с ID - 999 не найден", exception.getMessage());
+    }
+
+    @Test
+    void deleteFriendShouldRemoveFriendFromBothUsers() {
+        User user = userController.createUser(validUser);
+        User friend = userController.createUser(friend1);
+
+        userController.addFriend(user.getId(), friend.getId());
+        userController.deleteFriend(user.getId(), friend.getId());
+
+        Collection<User> userFriends = userController.getUserAllFriends(user.getId());
+        Collection<User> friendFriends = userController.getUserAllFriends(friend.getId());
+
+        assertEquals(0, userFriends.size());
+        assertEquals(0, friendFriends.size());
+    }
+
+    @Test
+    void deleteFriendShouldThrowExceptionWhenUserNotFound() {
+        User friend = userController.createUser(friend1);
+
+        NotFoundException exception = assertThrows(NotFoundException.class,
+                () -> userController.deleteFriend(999L, friend.getId()));
+
+        assertEquals("Пользователь с ID - 999 не найден", exception.getMessage());
+    }
+
+    @Test
+    void getCommonFriendsShouldReturnMutualFriends() {
+        User user = userController.createUser(validUser);
+        User friend1User = userController.createUser(friend1);
+        User friend2User = userController.createUser(friend2);
+
+        userController.addFriend(user.getId(), friend1User.getId());
+        userController.addFriend(user.getId(), friend2User.getId());
+
+        userController.addFriend(friend1User.getId(), user.getId());
+        userController.addFriend(friend1User.getId(), friend2User.getId());
+
+        Collection<User> commonFriends = userController.getCommonFriends(user.getId(), friend1User.getId());
+
+        assertEquals(1, commonFriends.size());
+        assertEquals(friend2User.getId(), commonFriends.iterator().next().getId());
+    }
+
+    @Test
+    void getCommonFriendsShouldReturnEmptyListWhenNoMutualFriends() {
+        User user = userController.createUser(validUser);
+        User friend = userController.createUser(friend1);
+
+        userController.addFriend(user.getId(), friend.getId());
+
+        Collection<User> commonFriends = userController.getCommonFriends(user.getId(), friend.getId());
+
+        assertEquals(0, commonFriends.size());
+    }
+
+    @Test
+    void getCommonFriendsShouldThrowExceptionWhenUserNotFound() {
+        User friend = userController.createUser(friend1);
+
+        NotFoundException exception = assertThrows(NotFoundException.class,
+                () -> userController.getCommonFriends(999L, friend.getId()));
+
+        assertEquals("Пользователь с ID - 999 не найден", exception.getMessage());
+    }
+
+    @Test
+    void getUserAllFriendsShouldReturnEmptyListWhenNoFriends() {
+        User user = userController.createUser(validUser);
+
+        Collection<User> friends = userController.getUserAllFriends(user.getId());
+
+        assertNotNull(friends);
+        assertTrue(friends.isEmpty());
+    }
+
+    @Test
+    void getUserAllFriendsShouldThrowExceptionWhenUserNotFound() {
+        NotFoundException exception = assertThrows(NotFoundException.class,
+                () -> userController.getUserAllFriends(999L));
+
+        assertEquals("Пользователь с ID - 999 не найден", exception.getMessage());
     }
 }
