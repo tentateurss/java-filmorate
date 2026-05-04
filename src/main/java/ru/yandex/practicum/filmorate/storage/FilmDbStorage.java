@@ -39,11 +39,18 @@ public class FilmDbStorage extends BaseDbStorage<Film> implements FilmStorage {
 
     @Override
     public Collection<Film> getAllFilms() {
-        List<Film> films = findMany(FIND_ALL);
+        List<Film> films = findMany(FIND_ALL); // Один запрос для фильмов с MPA
+
+        Map<Long, List<Genre>> genresMap = getAllGenresForFilms();  // Один запрос для всех жанров всех фильмов
+
+        Map<Long, Set<Long>> likesMap = getAllLikesForFilms(); // Один запрос для всех лайков всех фильмов
+
+        // раздаём жанры и лайки по фильмам без доп запросов
         for (Film film : films) {
-            film.setGenres(getGenres(film.getId()));
-            film.setLikes(getLikes(film.getId()));
+            film.setGenres(genresMap.getOrDefault(film.getId(), List.of()));
+            film.setLikes(likesMap.getOrDefault(film.getId(), Set.of()));
         }
+
         return films;
     }
 
@@ -156,5 +163,34 @@ public class FilmDbStorage extends BaseDbStorage<Film> implements FilmStorage {
                 "SELECT user_id FROM film_like WHERE film_id = ?", Long.class, filmId
         );
         return new HashSet<>(userIds);
+    }
+
+    private Map<Long, List<Genre>> getAllGenresForFilms() {
+        String sql = "SELECT fg.film_id, g.genre_id, g.name FROM film_genre fg " +
+                "JOIN genre g ON fg.genre_id = g.genre_id ORDER BY g.genre_id";
+
+        return jdbc.query(sql, rs -> {
+            Map<Long, List<Genre>> map = new HashMap<>();
+            while (rs.next()) {
+                Long filmId = rs.getLong("film_id");
+                Genre genre = new Genre(rs.getLong("genre_id"), rs.getString("name"));
+                map.computeIfAbsent(filmId, k -> new ArrayList<>()).add(genre);
+            }
+            return map;
+        });
+    }
+
+    private Map<Long, Set<Long>> getAllLikesForFilms() {
+        String sql = "SELECT film_id, user_id FROM film_like";
+
+        return jdbc.query(sql, rs -> {
+            Map<Long, Set<Long>> map = new HashMap<>();
+            while (rs.next()) {
+                Long filmId = rs.getLong("film_id");
+                Long userId = rs.getLong("user_id");
+                map.computeIfAbsent(filmId, k -> new HashSet<>()).add(userId);
+            }
+            return map;
+        });
     }
 }
