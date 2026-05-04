@@ -4,30 +4,58 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import ru.yandex.practicum.filmorate.controller.FilmController;
+import ru.yandex.practicum.filmorate.controller.UserController;
 import ru.yandex.practicum.filmorate.exception.ConditionsNotMetException;
 import ru.yandex.practicum.filmorate.exception.DuplicatedDataException;
 import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.exception.ValidationException;
 import ru.yandex.practicum.filmorate.model.Film;
+import ru.yandex.practicum.filmorate.model.User;
+import ru.yandex.practicum.filmorate.service.FilmService;
+import ru.yandex.practicum.filmorate.service.UserService;
+import ru.yandex.practicum.filmorate.storage.FilmStorage;
+import ru.yandex.practicum.filmorate.storage.InMemoryFilmStorage;
+import ru.yandex.practicum.filmorate.storage.InMemoryUserStorage;
+import ru.yandex.practicum.filmorate.storage.UserStorage;
 
 import java.time.LocalDate;
 import java.util.Collection;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 public class FilmControllerTest {
     private FilmController filmController;
+    private UserController userController;
+    private FilmService filmService;
+    private UserService userService;
     private Film validFilm;
+    private User validUser;
 
     @BeforeEach
     void setUp() {
-        filmController = new FilmController();
+        FilmStorage filmStorage = new InMemoryFilmStorage();
+        UserStorage userStorage = new InMemoryUserStorage();
+
+        userService = new UserService(userStorage);
+        filmService = new FilmService(filmStorage, userService);
+
+        filmController = new FilmController(filmService);
+        userController = new UserController(userService);
+
         validFilm = Film.builder()
                 .name("Valid Film")
                 .description("Valid description")
                 .releaseDate(LocalDate.of(2020, 1, 1))
                 .duration(120)
+                .build();
+
+        validUser = User.builder()
+                .email("test@test.com")
+                .login("testuser")
+                .name("Test User")
+                .birthday(LocalDate.of(2000, 1, 1))
                 .build();
     }
 
@@ -410,5 +438,182 @@ public class FilmControllerTest {
         Film updated = filmController.updateFilm(update);
         assertEquals("First Film", updated.getName());
         assertEquals(LocalDate.of(2021, 1, 1), updated.getReleaseDate());
+    }
+
+    // Тесты лайков
+    @Test
+    void addLikeShouldAddLikeToFilm() {
+        Film film = filmController.createFilm(validFilm);
+        User user = userController.createUser(validUser);
+
+        filmController.addLike(film.getId(), user.getId());
+
+        Film likedFilm = filmController.getFilmById(film.getId());
+        assertEquals(1, likedFilm.getLikes().size());
+        assertTrue(likedFilm.getLikes().contains(user.getId()));
+    }
+
+    @Test
+    void addLikeShouldThrowExceptionWhenFilmNotFound() {
+        User user = userController.createUser(validUser);
+
+        NotFoundException exception = assertThrows(NotFoundException.class,
+                () -> filmController.addLike(999L, user.getId()));
+
+        assertEquals("Фильм с ID - 999 не найден", exception.getMessage());
+    }
+
+    @Test
+    void addLikeShouldThrowExceptionWhenUserNotFound() {
+        Film film = filmController.createFilm(validFilm);
+
+        NotFoundException exception = assertThrows(NotFoundException.class,
+                () -> filmController.addLike(film.getId(), 999L));
+
+        assertEquals("Пользователь с ID - 999 не найден", exception.getMessage());
+    }
+
+    @Test
+    void addLikeShouldThrowExceptionWhenUserAlreadyLiked() {
+        Film film = filmController.createFilm(validFilm);
+        User user = userController.createUser(validUser);
+
+        filmController.addLike(film.getId(), user.getId());
+
+        DuplicatedDataException exception = assertThrows(DuplicatedDataException.class,
+                () -> filmController.addLike(film.getId(), user.getId()));
+
+        assertEquals("Пользователь уже поставил лайк этому фильму", exception.getMessage());
+    }
+
+    @Test
+    void deleteLikeShouldRemoveLikeFromFilm() {
+        Film film = filmController.createFilm(validFilm);
+        User user = userController.createUser(validUser);
+
+        filmController.addLike(film.getId(), user.getId());
+        filmController.deleteLike(film.getId(), user.getId());
+
+        Film unlikedFilm = filmController.getFilmById(film.getId());
+        assertEquals(0, unlikedFilm.getLikes().size());
+        assertFalse(unlikedFilm.getLikes().contains(user.getId()));
+    }
+
+    @Test
+    void deleteLikeShouldThrowExceptionWhenFilmNotFound() {
+        User user = userController.createUser(validUser);
+
+        NotFoundException exception = assertThrows(NotFoundException.class,
+                () -> filmController.deleteLike(999L, user.getId()));
+
+        assertEquals("Фильм с ID - 999 не найден", exception.getMessage());
+    }
+
+    @Test
+    void deleteLikeShouldThrowExceptionWhenUserNotFound() {
+        Film film = filmController.createFilm(validFilm);
+
+        NotFoundException exception = assertThrows(NotFoundException.class,
+                () -> filmController.deleteLike(film.getId(), 999L));
+
+        assertEquals("Пользователь с ID - 999 не найден", exception.getMessage());
+    }
+
+    @Test
+    void deleteLikeShouldThrowExceptionWhenUserDidNotLike() {
+        Film film = filmController.createFilm(validFilm);
+        User user = userController.createUser(validUser);
+
+        NotFoundException exception = assertThrows(NotFoundException.class,
+                () -> filmController.deleteLike(film.getId(), user.getId()));
+
+        assertEquals("Пользователь не ставил лайк этому фильму", exception.getMessage());
+    }
+
+    // Тесты для популярных фильмов
+    @Test
+    void getPopularFilmsShouldReturnFilmsSortedByLikes() {
+        Film film1 = filmController.createFilm(Film.builder()
+                .name("Film 1")
+                .description("Description 1")
+                .releaseDate(LocalDate.of(2020, 1, 1))
+                .duration(100)
+                .build());
+
+        Film film2 = filmController.createFilm(Film.builder()
+                .name("Film 2")
+                .description("Description 2")
+                .releaseDate(LocalDate.of(2021, 1, 1))
+                .duration(110)
+                .build());
+
+        Film film3 = filmController.createFilm(Film.builder()
+                .name("Film 3")
+                .description("Description 3")
+                .releaseDate(LocalDate.of(2022, 1, 1))
+                .duration(120)
+                .build());
+
+        User user1 = userController.createUser(validUser);
+        User user2 = userController.createUser(User.builder()
+                .email("user2@test.com")
+                .login("user2")
+                .name("User Two")
+                .birthday(LocalDate.of(1995, 5, 5))
+                .build());
+
+        filmController.addLike(film2.getId(), user1.getId());
+        filmController.addLike(film2.getId(), user2.getId());
+        filmController.addLike(film1.getId(), user1.getId());
+
+        Collection<Film> popularFilms = filmController.getPopularityFilm(10L);
+        List<Film> filmsList = popularFilms.stream().toList();
+
+        assertEquals(3, filmsList.size());
+        assertEquals(film2.getId(), filmsList.get(0).getId());
+        assertEquals(film1.getId(), filmsList.get(1).getId());
+        assertEquals(film3.getId(), filmsList.get(2).getId());
+    }
+
+    @Test
+    void getPopularFilmsShouldReturnLimitedCount() {
+        for (int i = 0; i < 15; i++) {
+            Film film = Film.builder()
+                    .name("Film " + i)
+                    .description("Description " + i)
+                    .releaseDate(LocalDate.of(2020, 1, 1))
+                    .duration(100 + i)
+                    .build();
+            filmController.createFilm(film);
+        }
+
+        Collection<Film> popularFilms = filmController.getPopularityFilm(5L);
+
+        assertEquals(5, popularFilms.size());
+    }
+
+    @Test
+    void getPopularFilmsShouldReturnDefault10WhenCountNotSpecified() {
+        for (int i = 0; i < 15; i++) {
+            Film film = Film.builder()
+                    .name("Film " + i)
+                    .description("Description " + i)
+                    .releaseDate(LocalDate.of(2020, 1, 1))
+                    .duration(100 + i)
+                    .build();
+            filmController.createFilm(film);
+        }
+
+        Collection<Film> popularFilms = filmController.getPopularityFilm(null);
+
+        assertEquals(10, popularFilms.size());
+    }
+
+    @Test
+    void getPopularFilmsShouldReturnEmptyListWhenNoFilms() {
+        Collection<Film> popularFilms = filmController.getPopularityFilm(10L);
+
+        assertNotNull(popularFilms);
+        assertTrue(popularFilms.isEmpty());
     }
 }
