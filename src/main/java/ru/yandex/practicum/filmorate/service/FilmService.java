@@ -1,25 +1,39 @@
 package ru.yandex.practicum.filmorate.service;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import ru.yandex.practicum.filmorate.exception.DuplicatedDataException;
 import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.model.Film;
+import ru.yandex.practicum.filmorate.model.Genre;
 import ru.yandex.practicum.filmorate.storage.FilmStorage;
+import ru.yandex.practicum.filmorate.storage.GenreDbStorage;
+import ru.yandex.practicum.filmorate.storage.MpaDbStorage;
 import ru.yandex.practicum.filmorate.validators.filmvalidators.FilmValidators;
 
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class FilmService {
+
     private final FilmStorage filmStorage;
     private final UserService userService;
+    private final MpaDbStorage mpaDbStorage;
+    private final GenreDbStorage genreDbStorage;
+
+    public FilmService(@Qualifier("filmDbStorage") FilmStorage filmStorage,
+                       UserService userService,
+                       MpaDbStorage mpaDbStorage,
+                       GenreDbStorage genreDbStorage) {
+        this.filmStorage = filmStorage;
+        this.userService = userService;
+        this.mpaDbStorage = mpaDbStorage;
+        this.genreDbStorage = genreDbStorage;
+    }
 
     public Collection<Film> getAllFilms() {
         return filmStorage.getAllFilms();
@@ -27,16 +41,21 @@ public class FilmService {
 
     public Film createFilm(Film film) {
         log.info("Создание фильма: {}", film);
-
         FilmValidators.validateFilm(film);
 
-        if (filmStorage.isDuplicates(film)) {
-            log.warn("Обнаружен дубликат фильма при создании");
-            throw new DuplicatedDataException("Такой фильм уже есть в базе");
+        if (film.getMpa() != null && film.getMpa().getId() != null) {
+            mpaDbStorage.findById(film.getMpa().getId())
+                    .orElseThrow(() -> new NotFoundException("MPA с ID " + film.getMpa().getId() + " не найден"));
+        }
+
+        if (film.getGenres() != null) {
+            for (Genre genre : film.getGenres()) {
+                genreDbStorage.findById(genre.getId())
+                        .orElseThrow(() -> new NotFoundException("Жанр с ID " + genre.getId() + " не найден"));
+            }
         }
 
         Film created = filmStorage.createFilm(film);
-        log.info("Фильм создан с ID: {}", created.getId());
         return created;
     }
 
@@ -53,30 +72,34 @@ public class FilmService {
 
         FilmValidators.validateFilmForUpdate(newFilm);
 
+        if (newFilm.getMpa() != null && newFilm.getMpa().getId() != null) {
+            mpaDbStorage.findById(newFilm.getMpa().getId())
+                    .orElseThrow(() -> new NotFoundException("MPA с ID " + newFilm.getMpa().getId() + " не найден"));
+            existingFilm.setMpa(newFilm.getMpa());
+        }
+
+        if (newFilm.getGenres() != null) {
+            for (Genre genre : newFilm.getGenres()) {
+                genreDbStorage.findById(genre.getId())
+                        .orElseThrow(() -> new NotFoundException("Жанр с ID " + genre.getId() + " не найден"));
+            }
+            existingFilm.setGenres(newFilm.getGenres());
+        }
+
         if (newFilm.getName() != null && !newFilm.getName().equalsIgnoreCase(existingFilm.getName())) {
             existingFilm.setName(newFilm.getName());
-            log.debug("Обновлено название: {}", newFilm.getName());
         }
 
         if (newFilm.getDescription() != null) {
             existingFilm.setDescription(newFilm.getDescription());
-            log.debug("Обновлено описание");
         }
 
         if (newFilm.getReleaseDate() != null && !newFilm.getReleaseDate().equals(existingFilm.getReleaseDate())) {
             existingFilm.setReleaseDate(newFilm.getReleaseDate());
-            log.debug("Обновлена дата релиза: {}", newFilm.getReleaseDate());
         }
 
         if (newFilm.getDuration() != null) {
             existingFilm.setDuration(newFilm.getDuration());
-            log.debug("Обновлена длительность: {}", newFilm.getDuration());
-        }
-
-
-        if (filmStorage.isDuplicates(existingFilm)) {
-            log.warn("Обнаружен дубликат фильма при обновлении");
-            throw new DuplicatedDataException("Такой фильм уже есть в базе");
         }
 
         Film updated = filmStorage.updateFilm(existingFilm);
@@ -85,37 +108,25 @@ public class FilmService {
     }
 
     public void addLike(Long filmId, Long userId) {
-        log.debug("Пользователь {} ставит лайк фильму {}", userId, filmId);
-
         Film film = getFilmById(filmId);
-
         userService.getUserById(userId);
 
-        if (film.getLikes() == null) {
-            film.setLikes(new HashSet<>());
-        }
-
-        if (film.getLikes().contains(userId)) {
+        if (film.getLikes() != null && film.getLikes().contains(userId)) {
             throw new DuplicatedDataException("Пользователь уже поставил лайк этому фильму");
         }
 
-        film.getLikes().add(userId);
-        log.debug("Лайк добавлен. Теперь у фильма {} лайков: {}", filmId, film.getLikes().size());
+        filmStorage.addLike(filmId, userId);
     }
 
     public void deleteLike(Long filmId, Long userId) {
-        log.debug("Пользователь {} убирает лайк с фильма {}", userId, filmId);
-
         Film film = getFilmById(filmId);
-
         userService.getUserById(userId);
 
         if (film.getLikes() == null || !film.getLikes().contains(userId)) {
             throw new NotFoundException("Пользователь не ставил лайк этому фильму");
         }
 
-        film.getLikes().remove(userId);
-        log.debug("Лайк удален. Теперь у фильма {} лайков: {}", filmId, film.getLikes().size());
+        filmStorage.removeLike(filmId, userId);
     }
 
     public List<Film> getPopularFilms(Long count) {
@@ -124,7 +135,6 @@ public class FilmService {
         }
 
         if (count <= 0) {
-            log.info("Запрошено {} фильмов, возвращаем пустой список", count);
             return List.of();
         }
 
@@ -141,11 +151,14 @@ public class FilmService {
                 .collect(Collectors.toList());
     }
 
+    public void deleteFilm(Long filmId) {
+        getFilmById(filmId);
+        filmStorage.deleteFilm(filmId);
+        log.info("Фильм с ID {} удалён", filmId);
+    }
+
     public Film getFilmById(Long id) {
         return filmStorage.getFilmById(id)
-                .orElseThrow(() -> {
-                    log.warn("Фильм с ID {} не найден", id);
-                    return new NotFoundException("Фильм с ID - " + id + " не найден");
-                });
+                .orElseThrow(() -> new NotFoundException("Фильм с ID - " + id + " не найден"));
     }
 }

@@ -3,6 +3,7 @@ package ru.yandex.practicum.filmorate.controller;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import ru.yandex.practicum.filmorate.model.Film;
 import ru.yandex.practicum.filmorate.service.FilmService;
@@ -60,5 +61,12 @@ public class FilmController {
     public void deleteLike(@PathVariable Long filmId, @PathVariable Long userId) {
         log.info("Пользователь {} убирает лайк с фильма {}", userId, filmId);
         filmService.deleteLike(filmId, userId);
+    }
+
+    @DeleteMapping("/{filmId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteFilm(@PathVariable Long filmId) {
+        log.info("Запрос на удаление фильма с ID {}", filmId);
+        filmService.deleteFilm(filmId);
     }
 }

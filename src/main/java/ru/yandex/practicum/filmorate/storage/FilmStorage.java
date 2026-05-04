@@ -19,4 +19,10 @@ public interface FilmStorage {
     boolean isDuplicates(Film film);
 
     long getNextId();
+
+    void deleteFilm(Long filmId);
+
+    void addLike(Long filmId, Long userId);
+
+    void removeLike(Long filmId, Long userId);
 }
